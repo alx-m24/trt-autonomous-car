@@ -1,0 +1,21 @@
+Gazebo multi-robot simulator, version 11.10.2
+Copyright (C) 2012 Open Source Robotics Foundation.
+Released under the Apache 2 License.
+http://gazebosim.org
+
+
+(1783078345 389848016) [Msg] Waiting for master.
+(1783078345 413118970) Failed to create connection to remote host[localhost:11345]
+(1783078346 418682351) [Msg] Connected to gazebo master @ http://127.0.0.1:11345
+(1783078346 418707747) [Msg] Publicized address: 192.168.100.3
+(1783078346 424245213) Loaded .ini file from: "/home/jackerost/.gazebo/gui.ini"
+(1783078348 802693831) [Msg] Warning: Ignoring XDG_SESSION_TYPE=wayland on Gnome. Use QT_QPA_PLATFORM=wayland to run on Wayland anyway.
+(1783078351 815977105) Invalid filename or directory["/home/jackerost/autonomous_prototype/install/auto_drive/share/auto_drive/worlds/my_track.world"] in GAZEBO_MODEL_PATH. It's not a good idea to put extra files in a GAZEBO_MODEL_PATH because the file structure may be modified by Gazebo.
+(1783078351 836435874) [Err] [InsertModelWidget.cc:403] Missing model.config for model "/opt/ros/humble/share/turtlebot3_gazebo/models/turtlebot3_autorace_2020"
+(1783078351 836622839) model.config file is missing in directory["/opt/ros/humble/share/turtlebot3_gazebo/models/turtlebot3_autorace_2020"]
+(1783078351 879861629) [Wrn] [ModelDatabase.cc:212] Unable to connect to model database using [//database.config]. Only locally installed models will be available.
+(1783078352 163207255) [Wrn] [Event.cc:61] Warning: Deleting a connection right after creation. Make sure to save the ConnectionPtr from a Connect call
+(1783078352 852768907) No spacenav daemon found. Spacenav functionality is disabled
+(1783078376 604790405) [Err] [JointControlWidget.cc:393] Error advertising topic [/old_track/joint_cmd]
+(1783078379 720226932) [Err] [JointControlWidget.cc:393] Error advertising topic [/old_track/joint_cmd]
+(1783078390 748848096) [Err] [JointControlWidget.cc:393] Error advertising topic [/old_track/joint_cmd]

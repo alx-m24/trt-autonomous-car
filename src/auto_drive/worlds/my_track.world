@@ -1,0 +1,56 @@
+<sdf version='1.7'>
+  <world name='nxgv_track'>
+    <gravity>0 0 -9.8</gravity>
+    <magnetic_field>6e-06 2.3e-05 -4.2e-05</magnetic_field>
+
+    <physics type='ode'>
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1</real_time_factor>
+      <real_time_update_rate>1000</real_time_update_rate>
+    </physics>
+
+    <scene>
+      <ambient>0.4 0.4 0.4 1</ambient>
+      <background>0.7 0.7 0.7 1</background>
+      <shadows>1</shadows>
+    </scene>
+
+    <light name='sun' type='directional'>
+      <cast_shadows>1</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.8 0.8 0.8 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <attenuation>
+        <range>1000</range>
+        <constant>0.9</constant>
+        <linear>0.01</linear>
+        <quadratic>0.001</quadratic>
+      </attenuation>
+      <direction>-0.5 0.1 -0.9</direction>
+    </light>
+
+    <!-- Provides /model_states, /link_states, /set_entity_state, etc. -->
+    <plugin name='gazebo_ros_state' filename='libgazebo_ros_state.so'>
+      <ros>
+        <namespace>/</namespace>
+      </ros>
+
+      <!-- Without an update_rate, the plugin may not publish model/link state topics. -->
+      <update_rate>30.0</update_rate>
+    </plugin>
+
+    <!-- Note: we intentionally omit the default ground plane to avoid overlapping
+         contacts with the track surface model below. -->
+
+    <!-- NXGV track: SolidWorks STL mesh model bundled in this package at
+         worlds/track_race/ (found via GAZEBO_MODEL_PATH set in the launch file).
+         model.sdf carries the uniform 0.001 mm->m scale and the X/Y re-centre,
+         so it loads at true CAD dimensions (no box/stretch). -->
+    <include>
+      <uri>model://track_race</uri>
+      <name>track_race</name>
+      <pose>0 0 0 0 0 0</pose>
+    </include>
+
+  </world>
+</sdf>

@@ -1,0 +1,169 @@
+# perception_node tunables — edit this file, then relaunch the node. No rebuild.
+#   ros2 run auto_drive perception_node --ros-args \
+#     --params-file src/auto_drive/config/perception_params.yaml
+#
+# CORNER-CUE CHEAT-SHEET (the raw-image road-fill detector, offline-validated):
+#   FALSE corner (turns where there is none, e.g. roundabout island) ->
+#       raise corner_reach_ratio (need clearer L/R asymmetry) and lower
+#       corner_reach_center_max (fire only when centre is really blocked).
+#   MISSES a real corner -> raise corner_reach_center_max, lower corner_reach_side_min.
+#   detector confused by foreground/horizon -> adjust corner_reach_roi_top/bot.
+#   captures a FAR/WRONG road section -> lower path_max_x_m (cap forward path).
+#   oversteers on curves -> lower bird_m_per_px_x (steering-authority lever;
+#       NOTE 0.01 is intentionally inflated — see calibration-tradeoff memory).
+perception_node:
+  ros__parameters:
+    # ── raw-image road-fill corner cue (the working detector) ──
+    corner_use_reach: true
+    corner_reach_road_max: 60        # grayscale <= this = road (near-black)
+    corner_reach_roi_top: 0.24       # ROI top frac (below horizon / OMar object)
+    corner_reach_roi_bot: 0.55       # ROI bottom frac (skip near foreground)
+    corner_reach_center_max: 0.40    # centre fill below this => corner
+    corner_reach_side_min: 0.25      # winning side fill must exceed this
+    corner_reach_ratio: 0.08         # min |L-R| fill asymmetry to pick a direction
+    # Multi-band SHARP-corner classifier (distinguishes a sharp corner from a curve).
+    # Fire ONLY when centre-NEAR is still full AND centre-MID has collapsed (a cliff =
+    # road ends abruptly ahead). A curve drops near+mid together (a ramp) so it never
+    # qualifies -> pure pursuit keeps it. Validated on captured REACH_MB 2026-07-02.
+    #   real sharp corner not firing -> LOWER corner_sharp_near_min / RAISE mid_max.
+    #   fires on a curve            -> RAISE corner_sharp_near_min / LOWER mid_max.
+    corner_sharp_near_min: 0.75      # centre-near must still be at least this full
+    corner_sharp_mid_max: 0.35       # centre-mid must have dropped to at most this
+    # DISPROVED: real corners here keep a healthy centreline (n_pts~34), so gating
+    # the reach cue on flood suppressed a real corner -> car ran off. Keep FALSE.
+    corner_reach_require_flood: false
+    # Open-road corroboration gate: the reach cue may only fire the maneuver when
+    # the BEV centreline ALSO says the road ENDS within view — the farthest strip
+    # backed by a REAL edge (flood-carried strips don't count) is at most this
+    # many BEV metres ahead. Offline-validated (scratchpad/gate_test.py,
+    # 2026-07-03): straights/curves ALWAYS read the full BEV height 7.11m (road
+    # runs off the top of the frame); the real corner reads <= 6.75m from the
+    # first correct cue fire. 6.9 splits them (one strip ~ 0.18m quantization).
+    # NOT the disproved n_pts gate above: edge-informed EXTENT, not point count.
+    #   real corner fires LATE / never -> RAISE toward 7.2 (watch edge_ext in
+    #       REACH_DBG on the corner approach).
+    #   still false-fires on a straight -> check edge_ext in the log first; if
+    #       it reads short there, the road mask has a false end (gap/shadow) —
+    #       fix the mask rather than lowering the gate.
+    #   0.0 disables the gate (previous behaviour).
+    # 2026-07-03 METRIC re-base: extents are REAL metres now (BEV tops out at
+    # bev_x_max_m=1.24; a straight reads ~1.23). The old 6.9 was fictitious
+    # units AND tuned on frames captured while the car was falling — invalid.
+    # 1.15 = full-extent minus ~4 strips, UNVALIDATED (corner maneuver is
+    # currently disabled in control_params; revalidate before re-enabling).
+    corner_path_end_max_m: 1.15
+
+    # 2026-07-04: near the roundabout edge_ext saturates to the same ~1.23m
+    # ceiling for a genuine corner (another road/the island visible far off) as
+    # for a false alarm elsewhere, so corner_path_end_max_m alone suppressed the
+    # 2nd (right) corner every time (confirmed live: real corner AND a stray
+    # false read both hit exactly 1.23). Override: if the drift EMA is ALSO
+    # already bending the reach cue's claimed direction by at least this many
+    # px (well below the standalone corner_drift_px=250 threshold), trust it.
+    #   2nd corner still suppressed -> raise (less corroboration required) and
+    #       check REACH_DBG/CORNER_DBG ema at the fire moment.
+    #   a false corner reappears near the roundabout -> lower, or add a
+    #       persistence requirement (N consecutive corroborated frames).
+    corner_reach_drift_corroborate_px: 30.0
+
+    # ── vertical connectivity gate (stops the path bridging a GAP to a far road) ──
+    #   lookahead JUMPS to a roundabout / a 2nd road across a bright gap ->
+    #       keep path_break_on_gap true; if it still bridges, LOWER path_gap_jump_frac.
+    #   path gets cut SHORT on a legit corner (road center shifts a lot per strip) ->
+    #       RAISE path_gap_jump_frac (toward ~0.45), or set path_break_on_gap false.
+    path_break_on_gap: true
+    path_gap_jump_frac: 0.30         # max lateral cluster jump (frac of BEV width) before "different road"
+    # row-fill-profile cut (strip-independent backstop): a band of >=min_rows rows
+    # with road-fill below min_fill = a gap; road above it is dropped.
+    #   still bridges a thin/aligned gap -> RAISE path_gap_row_min_fill (~0.05) so
+    #       the dim gap counts as empty, and/or LOWER path_gap_min_rows to 2.
+    #   cuts the road too short (far road is genuinely connected) -> LOWER min_fill
+    #       or RAISE path_gap_min_rows. If the gap is DARK (inside the L<80 mask),
+    #       no fill drop exists -> lower road_dark_threshold instead.
+    path_gap_row_min_fill: 0.02      # row counts as road if this fraction of its width is road
+    path_gap_min_rows: 3             # consecutive low-fill rows to confirm a real gap (reject noise)
+    # Near-field connectivity (the LEADING-gap fix, 2026-07-03). The two gaps
+    # above only fire once the car's road has started; leading empty/off-image
+    # near strips were skipped, so the centreline could START on a DIFFERENT
+    # road across the bright surround (confirmed: path = 2 poses at x=1.21/1.51,
+    # nothing in the near field). This refuses to start the centreline when more
+    # than this many leading near strips (of centroid_strips=40 over the 7.2m
+    # BEV, so 4 ~ 0.72m) were skipped -> control coasts straight instead of
+    # chasing a far road, and no spurious corner fires off the far segment.
+    #   real road dropped when the bumper strip is briefly empty -> RAISE to 6.
+    #   still bridges to a far road across the border -> LOWER to 2.
+    #   0 disables.
+    near_connect_max_empty_strips: 4
+
+    # ── centering: smooth weighted centreline fit (was OFF by default) ──
+    # Fits ONE smooth centreline, down-weighting unreliable one-sided/flood
+    # strips so the path stops biasing to an edge -> less straight wiggle.
+    # Safe now that SHARP corners are on the dead-reckon maneuver channel.
+    centerline_fit_enable: true
+    # 2026-07-03 (metric BEV): RAISED 1 -> 2 (a line cannot represent a bend;
+    # the magenta fit cut diagonally across corners while the cyan centroids
+    # bent correctly — the constant y=-0.24 approach offset).
+    # 2026-07-04: RAISED 2 -> 3. The back-to-back 90 is an S-JOG (near segment,
+    # lateral jog around the island, far segment) — that shape has an
+    # INFLECTION, and a parabola mathematically can't inflect, so deg-2 split
+    # the difference: cut across the island corner AND pulled off the cyan dots
+    # in the near field where the lookahead point lives (screenshot-confirmed).
+    # Safe-ish: _fit_centerline auto-drops degree when both-edge support is low
+    # (needs >=4 both-edge strips for deg-3), and the fixed-grid EMA damps wag.
+    #   fit far-end wags on straights -> LOWER centerline_smooth_alpha (0.25)
+    #       first; only then drop back to 2.
+    centerline_fit_degree: 3
+    # Temporal EMA on the fitted centreline (fixes the "drunk driver" far-end wag).
+    #   still swings -> LOWER centerline_smooth_alpha (steadier, e.g. 0.2).
+    #   feels laggy / late into curves -> RAISE it toward 0.6.
+    centerline_smooth_enable: true
+    centerline_smooth_alpha: 0.35    # 1.0 = no smoothing, lower = steadier + laggier
+    # 2026-07-03 (metric BEV): white-line FALLBACK DISABLED on this track. When
+    # road_conf collapsed mid-corner the pipeline fell back to "white lane
+    # lines" — but here the SURROUND itself is white (plus the parking-divider
+    # dashes), so it tracked the off-road floor and published garbage headings
+    # (corner log: road_conf=0.00 lane_conf=1.00 mode=lane_straight error=16).
+    # lane_conf maxes at 1.0, so 2.0 makes the fallback unreachable; the node
+    # holds the last good fit (fit_hold_frames) / degrades to no_signal instead.
+    #   only re-enable (~0.20) on a track whose LANE LINES are the white thing.
+    min_lane_conf: 2.0
+    # Fit-dropout HOLD: on a momentary fit failure, keep the last good centreline
+    # for this many frames instead of snapping the path back to the raw one-sided
+    # centroids (that snap = the offroad jerk). Raise if the car still flicks off on
+    # brief dropouts; lower toward 0 if it feels like it coasts on stale path too long.
+    fit_hold_frames: 5
+    # Where the BEV yellow dot is drawn on the fit path — MATCH control_params
+    # pp_lookahead_distance so the dot you watch is the true steering target.
+    overlay_lookahead_m: 0.45
+
+    # ── METRIC BEV (2026-07-03 root-fix: all path/corner metres are now REAL) ──
+    # The BEV is built from the URDF camera model (640x480 @ 80deg HFOV, 0.13m
+    # high, 0.13m forward, 20deg down) as a true ground homography at a constant
+    # scale. Audit findings that forced this: the old trapezoid covered only
+    # ~0.23-0.86m of ground (not 7.2m), and its lateral scale varied 4x with row
+    # (the two-section centreline / rail-path root cause). Toggle metric_bev
+    # false to A/B the legacy trapezoid (fictitious units return).
+    metric_bev: true
+    bev_m_per_px: 0.002              # 2mm/px -> BEV 500x500
+    bev_x_min_m: 0.24                # visible ground starts ~0.23m ahead of base
+    bev_x_max_m: 1.24                # beyond ~1.2m one camera px smears many BEV rows
+    bev_y_half_m: 0.50               # covers road (±0.151) + surround margin
+    # Camera model — matches urdf/my_car.urdf; change BOTH if the URDF changes.
+    cam_img_w: 640
+    cam_img_h: 480
+    cam_hfov_rad: 1.3962634
+    cam_height_m: 0.13
+    cam_forward_m: 0.13
+    cam_pitch_deg: 20.0
+    # Real road width, measured from the track meshes/texture:
+    #   track_race road.stl = 0.302m; old_track texture = 0.20m.
+    # Seeds the lane-width estimator (constant across rows in metric mode).
+    road_width_m: 0.302
+
+    # ── BEV path extent / calibration ──
+    path_min_x_m: 0.2
+    path_max_x_m: 1.2                # REAL metres now; matches bev_x_max_m
+    # Legacy-mode scales only — IGNORED when metric_bev is true (the true
+    # bev_m_per_px is forced so /lane_path is in real metres).
+    bird_m_per_px_x: 0.005
+    bird_m_per_px_y: 0.01

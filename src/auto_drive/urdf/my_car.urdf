@@ -1,0 +1,347 @@
+<?xml version="1.0"?>
+<robot name="my_car">
+
+  <!-- ── MATERIALS ───────────────────────────────────────── -->
+  <material name="blue">
+    <color rgba="0.0 0.0 0.8 1.0"/>
+  </material>
+  <material name="black">
+    <color rgba="0.0 0.0 0.0 1.0"/>
+  </material>
+  <material name="grey">
+    <color rgba="0.5 0.5 0.5 1.0"/>
+  </material>
+
+  <!-- ── BASE FOOTPRINT (required by ROS2) ───────────────── -->
+  <link name="base_footprint">
+    <!-- Gazebo physics can produce NaNs with massless links; keep this tiny but non-zero. -->
+    <inertial>
+      <mass value="0.001"/>
+      <inertia ixx="1e-6" ixy="0" ixz="0"
+               iyy="1e-6" iyz="0" izz="1e-6"/>
+    </inertial>
+  </link>
+
+  <joint name="base_footprint_joint" type="fixed">
+    <parent link="base_footprint"/>
+    <child link="base_link"/>
+    <!-- base_link is the chassis center; place it at wheel_radius (0.05) + chassis_half_height (0.03) -->
+    <origin xyz="0 0 0.08"/>
+  </joint>
+
+  <!-- ── CHASSIS ──────────────────────────────────────────── -->
+  <!-- 30cm long, 18cm wide, 6cm tall — typical 1/10 RC car -->
+  <link name="base_link">
+    <visual>
+      <geometry>
+        <box size="0.30 0.18 0.06"/>
+      </geometry>
+      <material name="blue"/>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="0.30 0.18 0.06"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="1.5"/>
+      <inertia ixx="0.01" ixy="0" ixz="0"
+               iyy="0.01" iyz="0" izz="0.02"/>
+    </inertial>
+  </link>
+
+  <!-- Minimal steering wheel joint for gazebo_ros_ackermann_drive stability -->
+  <link name="steering_wheel">
+    <inertial>
+      <mass value="0.01"/>
+      <inertia ixx="1e-6" ixy="0" ixz="0"
+               iyy="1e-6" iyz="0" izz="1e-6"/>
+    </inertial>
+  </link>
+
+  <joint name="steering_wheel_joint" type="revolute">
+    <parent link="base_link"/>
+    <child link="steering_wheel"/>
+    <origin xyz="0.10 0 0.08" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-7.85" upper="7.85" effort="1.0" velocity="10.0"/>
+  </joint>
+
+  <!-- ── REAR LEFT WHEEL ──────────────────────────────────── -->
+  <link name="rear_left_wheel">
+    <visual>
+      <origin rpy="0 1.5708 0"/>
+      <geometry>
+        <cylinder radius="0.05" length="0.04"/>
+      </geometry>
+      <material name="black"/>
+    </visual>
+    <collision>
+      <origin rpy="0 1.5708 0"/>
+      <geometry>
+        <cylinder radius="0.05" length="0.04"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.1"/>
+      <inertia ixx="0.0001" ixy="0" ixz="0"
+               iyy="0.0001" iyz="0" izz="0.0002"/>
+    </inertial>
+  </link>
+
+  <joint name="rear_left_wheel_joint" type="continuous">
+    <parent link="base_link"/>
+    <child link="rear_left_wheel"/>
+    <!-- x=-0.12 (rear), y=+0.11 (left side), z=-0.03 (below chassis) -->
+    <origin xyz="-0.12 0.11 -0.03" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
+  </joint>
+
+  <!-- ── REAR RIGHT WHEEL ─────────────────────────────────── -->
+  <link name="rear_right_wheel">
+    <visual>
+      <origin rpy="0 1.5708 0"/>
+      <geometry>
+        <cylinder radius="0.05" length="0.04"/>
+      </geometry>
+      <material name="black"/>
+    </visual>
+    <collision>
+      <origin rpy="0 1.5708 0"/>
+      <geometry>
+        <cylinder radius="0.05" length="0.04"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.1"/>
+      <inertia ixx="0.0001" ixy="0" ixz="0"
+               iyy="0.0001" iyz="0" izz="0.0002"/>
+    </inertial>
+  </link>
+
+  <joint name="rear_right_wheel_joint" type="continuous">
+    <parent link="base_link"/>
+    <child link="rear_right_wheel"/>
+    <origin xyz="-0.12 -0.11 -0.03" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
+  </joint>
+
+  <!-- ── FRONT LEFT WHEEL (steerable) ────────────────────── -->
+  <link name="front_left_steer">
+    <inertial>
+      <mass value="0.01"/>
+      <inertia ixx="1e-6" ixy="0" ixz="0"
+               iyy="1e-6" iyz="0" izz="1e-6"/>
+    </inertial>
+  </link>
+
+  <!-- Steering joint rotates around Z (up axis) -->
+  <joint name="front_left_steer_joint" type="revolute">
+    <parent link="base_link"/>
+    <child link="front_left_steer"/>
+    <origin xyz="0.12 0.11 -0.03" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-0.6" upper="0.6" effort="5.0" velocity="3.0"/>
+  </joint>
+
+  <link name="front_left_wheel">
+    <visual>
+      <origin rpy="0 1.5708 0"/>
+      <geometry>
+        <cylinder radius="0.05" length="0.04"/>
+      </geometry>
+      <material name="black"/>
+    </visual>
+    <collision>
+      <origin rpy="0 1.5708 0"/>
+      <geometry>
+        <cylinder radius="0.05" length="0.04"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.1"/>
+      <inertia ixx="0.0001" ixy="0" ixz="0"
+               iyy="0.0001" iyz="0" izz="0.0002"/>
+    </inertial>
+  </link>
+
+  <!-- Wheel spin joint rotates the wheel around its axle -->
+  <joint name="front_left_wheel_spin_joint" type="continuous">
+    <parent link="front_left_steer"/>
+    <child link="front_left_wheel"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
+  </joint>
+
+  <!-- ── FRONT RIGHT WHEEL (steerable) ───────────────────── -->
+  <link name="front_right_steer">
+    <inertial>
+      <mass value="0.01"/>
+      <inertia ixx="1e-6" ixy="0" ixz="0"
+               iyy="1e-6" iyz="0" izz="1e-6"/>
+    </inertial>
+  </link>
+
+  <joint name="front_right_steer_joint" type="revolute">
+    <parent link="base_link"/>
+    <child link="front_right_steer"/>
+    <origin xyz="0.12 -0.11 -0.03" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-0.6" upper="0.6" effort="5.0" velocity="3.0"/>
+  </joint>
+
+  <link name="front_right_wheel">
+    <visual>
+      <origin rpy="0 1.5708 0"/>
+      <geometry>
+        <cylinder radius="0.05" length="0.04"/>
+      </geometry>
+      <material name="black"/>
+    </visual>
+    <collision>
+      <origin rpy="0 1.5708 0"/>
+      <geometry>
+        <cylinder radius="0.05" length="0.04"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.1"/>
+      <inertia ixx="0.0001" ixy="0" ixz="0"
+               iyy="0.0001" iyz="0" izz="0.0002"/>
+    </inertial>
+  </link>
+
+  <joint name="front_right_wheel_spin_joint" type="continuous">
+    <parent link="front_right_steer"/>
+    <child link="front_right_wheel"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
+  </joint>
+
+  <!-- ── CAMERA ───────────────────────────────────────────── -->
+  <link name="camera_link">
+    <visual>
+      <geometry>
+        <box size="0.04 0.04 0.04"/>
+      </geometry>
+      <material name="grey"/>
+    </visual>
+    <inertial>
+      <mass value="0.05"/>
+      <inertia ixx="0.0001" ixy="0" ixz="0"
+               iyy="0.0001" iyz="0" izz="0.0001"/>
+    </inertial>
+  </link>
+
+  <!-- Camera sits on top front of chassis, angled 20 degrees down -->
+  <joint name="camera_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="camera_link"/>
+    <origin xyz="0.13 0 0.05" rpy="0 0.349 0"/>
+  </joint>
+
+  <link name="camera_optical_frame">
+    <!-- Also keep non-zero inertial for stability (no collision/visual needed). -->
+    <inertial>
+      <mass value="0.001"/>
+      <inertia ixx="1e-6" ixy="0" ixz="0"
+               iyy="1e-6" iyz="0" izz="1e-6"/>
+    </inertial>
+  </link>
+  <joint name="camera_optical_joint" type="fixed">
+    <parent link="camera_link"/>
+    <child link="camera_optical_frame"/>
+    <origin xyz="0 0 0" rpy="-1.5708 0 -1.5708"/>
+  </joint>
+
+  <!-- ── GAZEBO PLUGINS ────────────────────────────────────── -->
+
+  <!-- Planar move — stable kinematic control on the XY plane via /cmd_vel -->
+  <gazebo>
+    <plugin name="gazebo_ros_planar_move"
+            filename="libgazebo_ros_planar_move.so">
+      <ros>
+        <remapping>cmd_vel:=cmd_vel</remapping>
+        <remapping>odom:=odom</remapping>
+      </ros>
+
+      <update_rate>100</update_rate>
+      <publish_rate>30</publish_rate>
+
+      <publish_odom>true</publish_odom>
+      <publish_odom_tf>true</publish_odom_tf>
+
+      <odometry_frame>odom</odometry_frame>
+      <robot_base_frame>base_footprint</robot_base_frame>
+
+      <covariance_x>0.0001</covariance_x>
+      <covariance_y>0.0001</covariance_y>
+      <covariance_yaw>0.01</covariance_yaw>
+    </plugin>
+  </gazebo>
+
+  <!-- Camera sensor — publishes to /camera/image_raw -->
+  <gazebo reference="camera_link">
+    <sensor type="camera" name="front_camera">
+      <update_rate>30</update_rate>
+      <camera name="front_camera">
+        <horizontal_fov>1.3962634</horizontal_fov>
+        <image>
+          <width>640</width>
+          <height>480</height>
+          <format>R8G8B8</format>
+        </image>
+        <clip>
+          <near>0.02</near>
+          <far>300</far>
+        </clip>
+      </camera>
+      <plugin name="camera_controller"
+              filename="libgazebo_ros_camera.so">
+        <frame_name>camera_optical_frame</frame_name>
+        <image_topic_name>/camera/image_raw</image_topic_name>
+        <camera_info_topic_name>/camera/camera_info</camera_info_topic_name>
+      </plugin>
+    </sensor>
+  </gazebo>
+
+  <!-- Wheel friction: ZEROED 2026-07-04. The drive is gazebo_ros_planar_move,
+       which sets the base velocity KINEMATICALLY — the wheels don't propel the
+       car, they only touch the ground. To yaw, the wheel contact patches must
+       skid sideways, so any wheel friction FIGHTS the commanded rotation while
+       forward rolling is free. Measured on-track: linear velocity realized at
+       ~0.6x of command (= RTF) but yaw at only ~0.13x — a 4-5x rotation
+       deficit = the chronic understeer/slow-centering. With mu=0 the plugin's
+       cmd_vel is authoritative for both axes. Restore friction ONLY if the
+       drive is ever switched to a real wheel-torque plugin (ackermann/diff). -->
+  <gazebo reference="rear_left_wheel">
+    <mu1>0.0</mu1>
+    <mu2>0.0</mu2>
+  </gazebo>
+  <gazebo reference="rear_right_wheel">
+    <mu1>0.0</mu1>
+    <mu2>0.0</mu2>
+  </gazebo>
+  <gazebo reference="front_left_wheel">
+    <mu1>0.0</mu1>
+    <mu2>0.0</mu2>
+  </gazebo>
+  <gazebo reference="front_right_wheel">
+    <mu1>0.0</mu1>
+    <mu2>0.0</mu2>
+  </gazebo>
+
+<gazebo reference="base_link">
+    <sensor name="car_imu" type="imu">
+      <always_on>true</always_on>
+      <update_rate>20</update_rate> 
+      <plugin name="imu_plugin" filename="libgazebo_ros_imu_sensor.so">
+        <ros>
+          <remapping>~/out:=/imu</remapping>
+        </ros>
+        <initial_orientation_as_reference>false</initial_orientation_as_reference>
+      </plugin>
+    </sensor>
+  </gazebo>
+
+</robot>

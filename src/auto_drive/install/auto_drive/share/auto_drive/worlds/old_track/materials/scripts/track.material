@@ -1,0 +1,16 @@
+material Track/Surface
+{
+  technique
+  {
+    pass
+    {
+      lighting off
+      texture_unit
+      {
+        texture tracknxgv.png
+        filtering trilinear
+        max_anisotropy 16
+      }
+    }
+  }
+}

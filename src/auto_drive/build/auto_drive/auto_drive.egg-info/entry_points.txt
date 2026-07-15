@@ -1,0 +1,8 @@
+[console_scripts]
+calibrate_perspective = auto_drive.calibrate_perspective:main
+control_node = auto_drive.control_node:main
+parking_detector_node = auto_drive.parking_detector_node:main
+perception_node = auto_drive.perception_node:main
+terrain_node = auto_drive.terrain_node:main
+wheel_odom_node = auto_drive.wheel_odom_node:main
+

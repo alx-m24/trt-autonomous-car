@@ -1,0 +1,203 @@
+# control_node tunables — edit this file, then relaunch the node. No rebuild.
+#   ros2 run auto_drive control_node --ros-args \
+#     --params-file src/auto_drive/config/control_params.yaml
+#
+# TIMING CHEAT-SHEET (the corner symptoms):
+#   turns TOO EARLY  -> lower corner_commit_dist_m (commit later, when road
+#                       ahead is nearly gone) and/or raise corner_confirm_frames.
+#   turns TOO LATE   -> raise corner_trigger_dist_m / corner_commit_dist_m.
+#   OVERSTEERS the turn (spins past the road) -> lower turn_max_angle_deg, or
+#       raise turn_min_angle_deg only if it's stopping short. The turn now
+#       self-terminates when road is re-acquired ahead, so 90 is just a cap.
+#   follows a FAR/WRONG road section off-track -> shorten pp_lookahead_curve_m /
+#       pp_lookahead_distance (also cap perception path_max_x_m, see its file).
+#   general oversteer on curves -> lower bird_m_per_px_x in PERCEPTION, not here.
+control_node:
+  ros__parameters:
+    # ── corner maneuver gates (offline-validated raw-cue scale, NOT the old 6.0/1.8) ──
+    # DISABLED 2026-07-02: the reach cue can't distinguish a sharp corner from a
+    # gentle curve, so the dead-reckon turn false-fired on curves/straights -> offroad.
+    # Pure pursuit on the smoothed centreline takes the real corners fine on its own.
+    # Only re-enable with a curvature/shape discriminator (see track-race-corner-floods).
+    # RE-DISABLED 2026-07-03: the reach cue false-fired a dead-reckon RIGHT turn on
+    # a CONFIRMED-STRAIGHT road (control log: [turn] dir=R, turned to 43deg then
+    # timeout -> stuck RECOVER, car driven off the straight). The camera sees
+    # distant track structures / other road segments across the bright surround in
+    # the far-field ROI and reads them as a corner. The multi-band 'sharp' gate and
+    # the open-road extent gate were NOT enough to reject it.
+    # RE-ENABLED 2026-07-04. Everything that made it fail is now fixed at the root:
+    #  (1) BEV corner screenshots prove pure pursuit can NEVER take the 90 jog —
+    #      the row-centroid path publishes STRAIGHT through it (road turning
+    #      sideways has no per-row representation). A maneuver channel is required.
+    #  (2) Detection is clean under metric BEV + fixed track textures: SHARP left
+    #      fired with the cliff signature (cN=1.00, cM 0.30->0.05) exactly at the
+    #      corner, and the open-road gate now discriminates in REAL metres —
+    #      edge_ext 0.60 at the corner vs ~1.23 on straights (both live-logged).
+    #  (3) Wheel friction zeroed (URDF): the 43-deg stall was physics fighting the
+    #      commanded yaw; turns now execute at commanded rate. RTF~1 in the same
+    #      log, so the wall-clock turn timeout is no longer 5x short.
+    #   phantom turn on a straight returns -> set false again and log REACH_DBG;
+    #       check edge_ext there first (a straight must read ~1.2).
+    use_corner_maneuver: true
+    corner_yaw_use_odom: true        # close the turn on raw /odom yaw (EKF needs sim_time)
+    corner_trigger_dist_m: 0.40      # UNUSED with multi-band cue (APPROACH triggers on the sharp detection)
+    # PRIMARY commit trigger: mid_prox (corner_dist) collapses 0.84 -> ~0 as the
+    # nose reaches the corner; commit when it drops to/below this. This is
+    # distance-TO-CORNER (invariant to where detection first armed), so it fixes
+    # the 1st-corner early "cut" that odom-travel-from-detection caused.
+    #   turns TOO EARLY -> LOWER (wait for a deeper collapse).
+    #   turns TOO LATE  -> RAISE.
+    corner_commit_dist_m: 0.10
+    # FALLBACK safety-net: commit after creeping this far past first detection if
+    # proximity never collapses cleanly (e.g. the 2nd corner, whose cue the
+    # roundabout keeps suppressing). Raised 0.55 -> 0.90 so it can NEVER fire
+    # before the proximity trigger on a clean corner (LEFT reaches mid_prox~0 at
+    # ~0.77m of travel from its far first-detection).
+    corner_commit_travel_m: 0.90
+    corner_confirm_frames: 3         # stable sharp detections before APPROACH (raise to reject flaps)
+    # Tracked-bend abort (2026-07-07): on the old_track outer loop's LARGE-RADIUS
+    # sweeping bend the reach cue's cliff classifier still fires (centre-mid
+    # drains laterally, just as a slow ramp), and the tight turn_radius_m pivot
+    # then cuts inside the arc. Discriminator: a true 90 is approached STRAIGHT
+    # (pure-pursuit kappa ~0 until the road ends) while a sweeping bend has the
+    # follower ALREADY steering it (|kappa| ramped ~1.0 with a healthy path).
+    # Refuse to arm/commit while the smoothed follower curvature exceeds this
+    # (1/m) in the cue's direction. Failing run read kappa_ema ~0.9 at commit;
+    # straight approaches read ~0.05-0.2.  <=0 disables.
+    #   still pivots inside a sweeping bend       -> LOWER
+    #   real corner suppressed (CORNER_BEND log)  -> RAISE
+    corner_bend_abort_kappa: 0.50
+
+    # ── turn execution (angle-agnostic termination) ──
+    turn_speed: 0.10
+    turn_radius_m: 0.18
+    turn_angle_deg: 90.0             # FALLBACK target if road never re-acquires
+    turn_angle_tol_deg: 6.0
+    turn_min_angle_deg: 80.0         # rotate this far before road-reacquire can end the turn (was 35 -> under-turned)
+    turn_max_angle_deg: 120.0        # hard cap — a bad cue can't spin us past this
+    turn_timeout_sec: 6.0
+    recover_stable_frames: 5
+
+    # ── pure pursuit / steering ──
+    # 2026-07-03 METRIC RE-BASE: perception now publishes /lane_path in REAL
+    # metres (metric_bev). These lookaheads are true distances for the first
+    # time; the path spans x=[0.24, 1.2]m. Anything above ~1.2 can never be
+    # reached (falls back to the farthest point).
+    base_speed: 0.10
+    pp_lookahead_distance: 0.45      # real m (~2x wheelbase); raise toward 0.6 if it wiggles
+    pp_lookahead_turn_m: 0.80        # was 1.10 fictitious — beyond the real BEV; 0.8 is reachable
+    # 2026-07-03: LOWERED 0.80 -> 0.50. On a straight that perception momentarily
+    # mislabels 'curve', the 0.80m lookahead reached PAST the on-road near path into
+    # the fit's extrapolated far end — a point ~0.5m lateral at 0.8m fwd = ~32deg
+    # heading, right at the pp_point_max_heading_deg=16 gate boundary. It flickered
+    # pass(big steer)/reject(y=0 straight) frame-to-frame = the wag that drove the
+    # car off a road the magenta line was still sitting on (CTRL_DBG y swung
+    # -0.47<->+0.72 then stuck 0.000). 0.50 keeps control on the reliable near
+    # section. Real gentle curves still lead enough at 0.50.
+    #   real curves now UNDER-cut (car clips the inside) -> RAISE toward 0.70.
+    #   still wags on a mislabelled straight -> LOWER toward pp_lookahead_distance.
+    # 2026-07-04: RAISED 0.50 -> 0.60. With wheel friction zeroed the car now
+    # rotates at the full commanded rate, so gains tuned against the old 4-5x
+    # rotation deficit OVERSTEER ("curve sometimes oversteers"). Longer lookahead
+    # = gentler commanded curvature for the same lateral error.
+    #   still oversteers -> 0.70;  starts clipping the inside -> back toward 0.50.
+    # 2026-07-07: BACK to 0.50 — the sweeping outer-loop bend (R ~0.4-0.5m) is
+    # clipped on the inside: a 0.60m reach lands the lookahead point deep around
+    # the arc, so the car turns in ~0.6m EARLY (log: kappa ramped to -1.0 while
+    # odom still ran straight, yaw -10deg before the bend line). Part of the
+    # 2026-07-04 "oversteer" that motivated 0.60 was actually single-frame
+    # curve->roundabout scene flaps doubling kappa — now debounced (below), so
+    # try the debounce alone (0.60) before raising this again if wag returns.
+    pp_lookahead_curve_m: 0.50
+    # Turn-class lookahead escalation debounce (2026-07-07): mid-bend perception
+    # flaps curve<->roundabout on SINGLE frames; each flap swapped the lookahead
+    # 0.60<->0.80m and near-doubled commanded curvature (log: kappa -0.27 ->
+    # -0.53 on consecutive frames) = oversteer pulses walking the car inside the
+    # arc. Require this many CONSECUTIVE turn/roundabout frames before using
+    # pp_lookahead_turn_m + the turn hard-brake; unconfirmed frames drive as
+    # 'curve'. 1 = old instant behaviour.
+    #   real roundabout entered too fast / too shallow -> LOWER
+    #   kappa still spikes on flaps (CTRL_DBG)         -> RAISE
+    pp_turn_scene_confirm_frames: 5
+    # Lookahead-point plausibility gate (fixes the sustained drift-off-road):
+    # perception's centreline rails to the BEV edge (|y|->2.5m) when the inner
+    # lane edge leaves frame on a curve. The controller was steering ~9deg the
+    # WRONG way for 1.5s toward that edge point = slid off. This gate rejects any
+    # lookahead point beyond floor + x*tan(heading) of dead-ahead and steers to
+    # the nearest plausible (near, both-edge) point instead. Data 2026-07-03:
+    # After the perception source-fix, a clean straight reads y=0.000 (was 0.33),
+    # so the gate has room to be tight. Tightened 2026-07-03: transient one-sided
+    # misdetections spike y to ~0.85 for ~1s (EMA-smeared) -> the residual drift.
+    # gate at x~1.2 = 0.30 + 1.2*tan(16) = 0.64 -> rejects those spikes.
+    #   curve visibly UNDER-turns (doesn't lean in enough) -> RAISE heading toward 22.
+    #   still drifts off on a straight spike -> LOWER heading / floor.
+    # NOTE 2026-07-03: with metric_bev these are REAL metres/degrees for the
+    # first time (they were tuned against fictitious units). 0.30m floor is a
+    # full road-width of slack — this gate should rarely fire now; if it fires
+    # constantly in CTRL_DBG, suspect perception, don't retune blindly.
+    pp_point_max_heading_deg: 16.0
+    pp_point_lateral_floor_m: 0.30
+    # Degenerate-path guard (2026-07-03): perception sometimes publishes a RAIL
+    # path — a couple of far-only poses all leaning one side, NO near point
+    # (confirmed via /lane_path echo on a straight: 2 poses at x=1.21/1.51,
+    # both y~0.4 left, nothing near). Control locked onto the far-left rail and
+    # steered off a straight road the magenta line still sat on. When a
+    # straight/curve path has < pp_min_path_points valid poses OR no pose within
+    # pp_near_point_max_x_m ahead, coast straight (decay steer, half speed) until
+    # a real near-supported path returns. Watch for PATH_DEGEN in the log.
+    #   coasts straight THROUGH a real bend it should take -> RAISE
+    #       pp_near_point_max_x_m or LOWER pp_min_path_points.
+    #   still yanked by a sparse far path -> LOWER pp_near_point_max_x_m.
+    pp_min_path_points: 3
+    pp_near_point_max_x_m: 0.70
+    pp_curvature_slowdown: 1.40
+    # ── curve-tracking robustness (2026-07-07) ──
+    # Curvature FEEDFORWARD (implemented 2026-07-06 for "runs wide on arcs"):
+    # blends the live near-band arc curvature fitted from /lane_path into the
+    # command. It silently never engaged — the fit band capped at x<=0.45m but
+    # the metric-BEV path STARTS at x~0.24m, leaving <4 poses -> kff=na on every
+    # frame. Band raised to 0.60m so it actually fires. Watch kff in CTRL_DBG.
+    #   car still runs wide on arcs -> RAISE gain toward 0.5
+    #   twitchy / over-turns on arcs -> LOWER gain toward 0.2
+    pp_curvature_ff_gain: 0.3
+    pp_ff_band_max_x_m: 0.60
+    # NEAR-FIELD CENTERING: continuously steers the lateral offset of the near
+    # path (bottom of the BEV, x <= band) back to zero, killing the standing
+    # inside-drift pure pursuit tolerates mid-bend. kctr in CTRL_DBG shows the
+    # live correction. 0 gain disables.
+    #   still drifts inside on bends  -> RAISE gain toward 2.5
+    #   weaves/oscillates on straights -> LOWER gain toward 0.8
+    pp_center_gain: 1.5
+    pp_center_band_max_x_m: 0.50
+    pp_center_max_kappa: 0.60
+    max_error_deg: 45.0
+    error_sign: -1.0
+
+    # ── yaw-rate actuation correction (2026-07-07, MEASURED) ──
+    # Isolated rclpy probes (pure rotation, pure forward, combined; magnitudes
+    # 0.10 and 0.556 rad/s) against this exact Gazebo/planar_move setup found a
+    # FLAT, magnitude-independent realized/commanded yaw-rate ratio of ~0.658 —
+    # linear.x realizes ~1.00. Confirmed live during an actual off-road drift
+    # (fd_wz/cmd_wz = 0.153/0.232 = 0.659). It's a scale bug, not friction (mu=0
+    # fix already applied — see planar-move-wheel-friction memory — reduced but
+    # didn't eliminate it). Applied once at control_node's _pub(), so it corrects
+    # EVERY cmd_vel regardless of source (EXECUTE_TURN, pure pursuit, parking)
+    # without touching any internal curvature math (kappa/kctr/kff/pp_kappa_ema/
+    # corner_bend_abort_kappa all still see the pre-correction values).
+    #   car still runs wide / drifts off-road on curves -> RAISE toward 1.6
+    #   car now oscillates / overshoots corrections      -> LOWER toward 1.3
+    #   physics/URDF ever changes -> re-measure with the isolated probe script
+    #       before assuming 1.520 still holds (see yaw-rate-actuation-deficit memory)
+    angular_cmd_gain: 1.520
+
+    # ── APF boundary repulsion ──
+    # DISABLED 2026-07-02 (gains 0): the metre thresholds below don't match the
+    # ~8x-inflated bird_m_per_px_x y-scale, so |y| crosses the edge easily and the
+    # repulsion detonates (dist_to_edge clamps to 0.01 -> force ~8) = offroad thrash
+    # even on a straight. This was THE straight-line wiggle. Pure pursuit alone drives
+    # clean. To re-enable, first recalibrate track_half_width/safe_margin to the real
+    # y-scale (measure the road's real half-width in the controller y units).
+    apf_track_half_width: 0.15
+    apf_safe_margin: 0.06
+    apf_repulsion_gain: 0.0
+    apf_repulsion_gain_straight: 0.0

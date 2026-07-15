@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<sdf version="1.6">
+  <model name="tunnell">
+    <static>true</static>
+    <link name="link">
+      <visual name="vis">
+        <geometry>
+          <mesh>
+            <uri>model://tunnell/meshes/tunnell.dae</uri>
+            <scale>0.0011 0.0011 0.0011</scale>
+          </mesh>
+        </geometry>
+      </visual>
+      <collision name="col">
+        <geometry>
+          <mesh>
+            <uri>model://tunnell/meshes/tunnell.dae</uri>
+            <scale>0.0011 0.0011 0.0011</scale>
+          </mesh>
+        </geometry>
+      </collision>
+    </link>
+  </model>
+</sdf>

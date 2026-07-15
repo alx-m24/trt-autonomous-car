@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<sdf version="1.6">
+  <model name="track_race">
+    <static>true</static>
+    <link name="link">
+
+      <collision name="col">
+        <geometry>
+          <box><size>3.9 2.16 0.002</size></box>
+        </geometry>
+      </collision>
+
+      <visual name="vis">
+        <geometry>
+          <box><size>3.9 2.16 0.002</size></box>
+        </geometry>
+        <material>
+          <script>
+            <uri>model://track_race/materials/scripts/track.material</uri>
+            <uri>model://track_race/materials/textures</uri>
+            <name>Track/Surface</name>
+          </script>
+        </material>
+      </visual>
+
+    </link>
+  </model>
+</sdf>

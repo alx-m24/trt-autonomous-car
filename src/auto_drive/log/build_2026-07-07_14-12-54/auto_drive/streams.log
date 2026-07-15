@@ -1,0 +1,56 @@
+[0.614s] Invoking command in '/home/jackerost/autonomous_prototype/src/auto_drive': PYTHONPATH=/home/jackerost/autonomous_prototype/src/auto_drive/build/auto_drive/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/jackerost/autonomous_prototype/src/auto_drive/install/auto_drive/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base build/auto_drive build --build-base /home/jackerost/autonomous_prototype/src/auto_drive/build/auto_drive/build install --record /home/jackerost/autonomous_prototype/src/auto_drive/build/auto_drive/install.log --single-version-externally-managed install_data
+[0.778s] running egg_info
+[0.778s] writing build/auto_drive/auto_drive.egg-info/PKG-INFO
+[0.779s] writing dependency_links to build/auto_drive/auto_drive.egg-info/dependency_links.txt
+[0.779s] writing entry points to build/auto_drive/auto_drive.egg-info/entry_points.txt
+[0.779s] writing requirements to build/auto_drive/auto_drive.egg-info/requires.txt
+[0.779s] writing top-level names to build/auto_drive/auto_drive.egg-info/top_level.txt
+[0.780s] reading manifest file 'build/auto_drive/auto_drive.egg-info/SOURCES.txt'
+[0.782s] writing manifest file 'build/auto_drive/auto_drive.egg-info/SOURCES.txt'
+[0.782s] running build
+[0.782s] running build_py
+[0.782s] copying auto_drive/control_node.py -> /home/jackerost/autonomous_prototype/src/auto_drive/build/auto_drive/build/lib/auto_drive
+[0.782s] copying auto_drive/wheel_odom_node.py -> /home/jackerost/autonomous_prototype/src/auto_drive/build/auto_drive/build/lib/auto_drive
+[0.782s] copying auto_drive/parking_maneuver.py -> /home/jackerost/autonomous_prototype/src/auto_drive/build/auto_drive/build/lib/auto_drive
+[0.782s] running install
+[0.783s] running install_lib
+[0.783s] copying /home/jackerost/autonomous_prototype/src/auto_drive/build/auto_drive/build/lib/auto_drive/control_node.py -> /home/jackerost/autonomous_prototype/src/auto_drive/install/auto_drive/lib/python3.10/site-packages/auto_drive
+[0.783s] copying /home/jackerost/autonomous_prototype/src/auto_drive/build/auto_drive/build/lib/auto_drive/wheel_odom_node.py -> /home/jackerost/autonomous_prototype/src/auto_drive/install/auto_drive/lib/python3.10/site-packages/auto_drive
+[0.783s] copying /home/jackerost/autonomous_prototype/src/auto_drive/build/auto_drive/build/lib/auto_drive/parking_maneuver.py -> /home/jackerost/autonomous_prototype/src/auto_drive/install/auto_drive/lib/python3.10/site-packages/auto_drive
+[0.784s] byte-compiling /home/jackerost/autonomous_prototype/src/auto_drive/install/auto_drive/lib/python3.10/site-packages/auto_drive/control_node.py to control_node.cpython-310.pyc
+[0.790s] byte-compiling /home/jackerost/autonomous_prototype/src/auto_drive/install/auto_drive/lib/python3.10/site-packages/auto_drive/wheel_odom_node.py to wheel_odom_node.cpython-310.pyc
+[0.791s] byte-compiling /home/jackerost/autonomous_prototype/src/auto_drive/install/auto_drive/lib/python3.10/site-packages/auto_drive/parking_maneuver.py to parking_maneuver.cpython-310.pyc
+[0.792s] running install_data
+[0.792s] creating /home/jackerost/autonomous_prototype/src/auto_drive/install/auto_drive/share/auto_drive/worlds/track_race
+[0.792s] copying worlds/track_race/model.config -> /home/jackerost/autonomous_prototype/src/auto_drive/install/auto_drive/share/auto_drive/worlds/track_race
+[0.793s] copying worlds/track_race/model.sdf -> /home/jackerost/autonomous_prototype/src/auto_drive/install/auto_drive/share/auto_drive/worlds/track_race
+[0.793s] creating /home/jackerost/autonomous_prototype/src/auto_drive/install/auto_drive/share/auto_drive/worlds/track_race/meshes
+[0.793s] copying worlds/track_race/meshes/OMar.stl -> /home/jackerost/autonomous_prototype/src/auto_drive/install/auto_drive/share/auto_drive/worlds/track_race/meshes
+[0.794s] copying worlds/track_race/meshes/lines.stl -> /home/jackerost/autonomous_prototype/src/auto_drive/install/auto_drive/share/auto_drive/worlds/track_race/meshes
+[0.795s] copying worlds/track_race/meshes/surround.stl -> /home/jackerost/autonomous_prototype/src/auto_drive/install/auto_drive/share/auto_drive/worlds/track_race/meshes
+[0.795s] copying worlds/track_race/meshes/road.stl -> /home/jackerost/autonomous_prototype/src/auto_drive/install/auto_drive/share/auto_drive/worlds/track_race/meshes
+[0.796s] creating /home/jackerost/autonomous_prototype/src/auto_drive/install/auto_drive/share/auto_drive/worlds/track_race/materials
+[0.796s] creating /home/jackerost/autonomous_prototype/src/auto_drive/install/auto_drive/share/auto_drive/worlds/track_race/materials/scripts
+[0.796s] copying worlds/track_race/materials/scripts/track.material -> /home/jackerost/autonomous_prototype/src/auto_drive/install/auto_drive/share/auto_drive/worlds/track_race/materials/scripts
+[0.796s] creating /home/jackerost/autonomous_prototype/src/auto_drive/install/auto_drive/share/auto_drive/worlds/track_race/materials/textures
+[0.796s] copying worlds/track_race/materials/textures/custom_road.png -> /home/jackerost/autonomous_prototype/src/auto_drive/install/auto_drive/share/auto_drive/worlds/track_race/materials/textures
+[0.796s] creating /home/jackerost/autonomous_prototype/src/auto_drive/install/auto_drive/share/auto_drive/worlds/old_track
+[0.796s] copying worlds/old_track/model.config -> /home/jackerost/autonomous_prototype/src/auto_drive/install/auto_drive/share/auto_drive/worlds/old_track
+[0.797s] copying worlds/old_track/model.sdf -> /home/jackerost/autonomous_prototype/src/auto_drive/install/auto_drive/share/auto_drive/worlds/old_track
+[0.797s] creating /home/jackerost/autonomous_prototype/src/auto_drive/install/auto_drive/share/auto_drive/worlds/old_track/materials
+[0.797s] creating /home/jackerost/autonomous_prototype/src/auto_drive/install/auto_drive/share/auto_drive/worlds/old_track/materials/scripts
+[0.797s] copying worlds/old_track/materials/scripts/track.material -> /home/jackerost/autonomous_prototype/src/auto_drive/install/auto_drive/share/auto_drive/worlds/old_track/materials/scripts
+[0.798s] creating /home/jackerost/autonomous_prototype/src/auto_drive/install/auto_drive/share/auto_drive/worlds/old_track/materials/textures
+[0.798s] copying worlds/old_track/materials/textures/tracknxgv.png -> /home/jackerost/autonomous_prototype/src/auto_drive/install/auto_drive/share/auto_drive/worlds/old_track/materials/textures
+[0.799s] running install_egg_info
+[0.800s] removing '/home/jackerost/autonomous_prototype/src/auto_drive/install/auto_drive/lib/python3.10/site-packages/auto_drive-0.0.0-py3.10.egg-info' (and everything under it)
+[0.800s] Copying build/auto_drive/auto_drive.egg-info to /home/jackerost/autonomous_prototype/src/auto_drive/install/auto_drive/lib/python3.10/site-packages/auto_drive-0.0.0-py3.10.egg-info
+[0.802s] running install_scripts
+[0.817s] Installing calibrate_perspective script to /home/jackerost/autonomous_prototype/src/auto_drive/install/auto_drive/lib/auto_drive
+[0.817s] Installing control_node script to /home/jackerost/autonomous_prototype/src/auto_drive/install/auto_drive/lib/auto_drive
+[0.817s] Installing parking_detector_node script to /home/jackerost/autonomous_prototype/src/auto_drive/install/auto_drive/lib/auto_drive
+[0.817s] Installing perception_node script to /home/jackerost/autonomous_prototype/src/auto_drive/install/auto_drive/lib/auto_drive
+[0.817s] Installing terrain_node script to /home/jackerost/autonomous_prototype/src/auto_drive/install/auto_drive/lib/auto_drive
+[0.817s] Installing wheel_odom_node script to /home/jackerost/autonomous_prototype/src/auto_drive/install/auto_drive/lib/auto_drive
+[0.817s] writing list of installed files to '/home/jackerost/autonomous_prototype/src/auto_drive/build/auto_drive/install.log'
+[0.835s] Invoked command in '/home/jackerost/autonomous_prototype/src/auto_drive' returned '0': PYTHONPATH=/home/jackerost/autonomous_prototype/src/auto_drive/build/auto_drive/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/jackerost/autonomous_prototype/src/auto_drive/install/auto_drive/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base build/auto_drive build --build-base /home/jackerost/autonomous_prototype/src/auto_drive/build/auto_drive/build install --record /home/jackerost/autonomous_prototype/src/auto_drive/build/auto_drive/install.log --single-version-externally-managed install_data

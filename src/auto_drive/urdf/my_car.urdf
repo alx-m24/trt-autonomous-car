@@ -254,6 +254,28 @@
     <origin xyz="0 0 0" rpy="-1.5708 0 -1.5708"/>
   </joint>
 
+  <!-- ── LIDAR ────────────────────────────────────────────── -->
+    <link name="lidar_link">
+      <visual>
+        <geometry>
+          <cylinder radius="0.02" length="0.03"/>
+        </geometry>
+        <material name="black"/>
+      </visual>
+      <inertial>
+        <mass value="0.05"/>
+        <inertia ixx="0.0001" ixy="0" ixz="0"
+                 iyy="0.0001" iyz="0" izz="0.0001"/>
+      </inertial>
+    </link>
+    
+    <joint name="lidar_joint" type="fixed">
+      <parent link="base_link"/>
+      <child link="lidar_link"/>
+      <!-- mounted on top, roughly centered -->
+      <origin xyz="0 0 0.08" rpy="0 0 0"/>
+    </joint>
+
   <!-- ── GAZEBO PLUGINS ────────────────────────────────────── -->
 
   <!-- Planar move — stable kinematic control on the XY plane via /cmd_vel -->
@@ -304,6 +326,38 @@
       </plugin>
     </sensor>
   </gazebo>
+
+
+
+  <!-- ── LIDAR ────────────────────────────────────────────── -->
+<gazebo reference="lidar_link">
+  <sensor type="ray" name="lidar_sensor">
+    <always_on>true</always_on>
+    <update_rate>10</update_rate>
+    <ray>
+      <scan>
+        <horizontal>
+          <samples>360</samples>
+          <resolution>1</resolution>
+          <min_angle>-3.14159</min_angle>
+          <max_angle>3.14159</max_angle>
+        </horizontal>
+      </scan>
+      <range>
+        <min>0.10</min>
+        <max>10.0</max>
+        <resolution>0.01</resolution>
+      </range>
+    </ray>
+    <plugin name="lidar_controller" filename="libgazebo_ros_ray_sensor.so">
+      <ros>
+        <remapping>~/out:=scan</remapping>
+      </ros>
+      <output_type>sensor_msgs/LaserScan</output_type>
+      <frame_name>lidar_link</frame_name>
+    </plugin>
+  </sensor>
+</gazebo>
 
   <!-- Wheel friction: ZEROED 2026-07-04. The drive is gazebo_ros_planar_move,
        which sets the base velocity KINEMATICALLY — the wheels don't propel the

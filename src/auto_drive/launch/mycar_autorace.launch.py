@@ -1,6 +1,7 @@
 import os
 from launch import LaunchDescription
 from launch.actions import ExecuteProcess, SetEnvironmentVariable
+from launch.actions import TimerAction
 from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
 
@@ -10,14 +11,26 @@ def generate_launch_description():
     world_file = os.path.join(pkg, 'worlds', 'my_track.world')
     ekf_config = os.path.join(pkg, 'config', 'ekf.yaml')
 
-    # Make model://track_race resolve to this package's worlds/track_race/.
-    # The worlds dir holds the track_race model folder; prepend it to
-    # GAZEBO_MODEL_PATH so Gazebo finds it regardless of workspace name.
     models_dir = os.path.join(pkg, 'worlds')
     gazebo_model_path = models_dir + os.pathsep + os.environ.get('GAZEBO_MODEL_PATH', '')
 
     with open(urdf_file, 'r') as f:
         robot_desc = f.read()
+
+    spawn_entity_node = Node(
+        package='gazebo_ros',
+        executable='spawn_entity.py',
+        arguments=[
+            '-entity', 'my_car',
+            '-topic', 'robot_description',
+            '-x', '0.63',
+            '-y', '1.06',
+            '-z', '0.02',
+            '-Y', '0.0',
+            '-spawn_service_timeout', '30.0',
+        ],
+        output='screen'
+    )
 
     return LaunchDescription([
         SetEnvironmentVariable('GAZEBO_MODEL_PATH', gazebo_model_path),
@@ -33,29 +46,12 @@ def generate_launch_description():
             parameters=[{'robot_description': robot_desc}],
             output='screen'
         ),
-        Node(
-            package='gazebo_ros',
-            executable='spawn_entity.py',
-            arguments=[
-                '-entity', 'my_car',
-                '-topic', 'robot_description',
-                # On-road spawn for the track_race mesh. The mesh is re-centred
-                # (model.sdf pose -1.2132 0.0694), so the origin sits off the road
-                # and the car fell through. This point is interior road surface
-                # (drivable plane z~=0.003), ~0.4 m clearance from the nearest edge.
-                '-x', '0.63',
-                '-y', '1.06',
-                # Spawn origin == wheel-contact plane, so z is the drop height.
-                # Road top is z~=0.003; 0.02 leaves a ~1.7 cm gap so the car
-                # settles gently instead of dropping 10 cm.
-                '-z', '0.02',
-                '-Y', '0.0',
-            ],
-            output='screen'
+        # Delay spawn until gzserver has finished loading the factory plugin
+        # and advertised /spawn_entity — avoids racing Gazebo startup.
+        TimerAction(
+            period=8.0,
+            actions=[spawn_entity_node]
         ),
-        # EKF: fuse planar_move /odom + IMU /imu -> /odometry/filtered.
-        # Gives the control node a trustworthy yaw to terminate the 90deg
-        # dead-reckoned corner maneuver on.
         Node(
             package='robot_localization',
             executable='ekf_node',

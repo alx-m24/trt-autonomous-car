@@ -2,6 +2,9 @@ import os
 from launch import LaunchDescription
 from launch.actions import ExecuteProcess, SetEnvironmentVariable
 from launch.actions import TimerAction
+from launch.actions import DeclareLaunchArgument
+from launch.substitutions import LaunchConfiguration
+from launch.conditions import IfCondition
 from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
 
@@ -13,6 +16,12 @@ def generate_launch_description():
 
     models_dir = os.path.join(pkg, 'worlds')
     gazebo_model_path = models_dir + os.pathsep + os.environ.get('GAZEBO_MODEL_PATH', '')
+
+    gui_arg = DeclareLaunchArgument('gui', default_value='true')
+
+    gazebo_cmd = ['gzserver', '--verbose', world_file,
+                  '-s', 'libgazebo_ros_factory.so',
+                  '-s', 'libgazebo_ros_init.so']
 
     with open(urdf_file, 'r') as f:
         robot_desc = f.read()
@@ -34,11 +43,13 @@ def generate_launch_description():
 
     return LaunchDescription([
         SetEnvironmentVariable('GAZEBO_MODEL_PATH', gazebo_model_path),
+        gui_arg,
+        ExecuteProcess(cmd=gazebo_cmd, output='screen'),
+        # If gui:=true is passed, also launch gzclient
         ExecuteProcess(
-            cmd=['gazebo', '--verbose', world_file,
-                 '-s', 'libgazebo_ros_factory.so',
-                 '-s', 'libgazebo_ros_init.so'],
-            output='screen'
+            cmd=['gzclient'],
+            output='screen',
+            condition=IfCondition(LaunchConfiguration('gui'))
         ),
         Node(
             package='robot_state_publisher',
@@ -46,8 +57,6 @@ def generate_launch_description():
             parameters=[{'robot_description': robot_desc}],
             output='screen'
         ),
-        # Delay spawn until gzserver has finished loading the factory plugin
-        # and advertised /spawn_entity — avoids racing Gazebo startup.
         TimerAction(
             period=8.0,
             actions=[spawn_entity_node]

@@ -398,4 +398,20 @@
     </sensor>
   </gazebo>
 
+  <gazebo>
+  <plugin name="joint_state_publisher" filename="libgazebo_ros_joint_state_publisher.so">
+    <ros>
+      <remapping>~/out:=joint_states</remapping>
+    </ros>
+    <update_rate>30</update_rate>
+    <joint_name>front_left_steer_joint</joint_name>
+    <joint_name>front_right_steer_joint</joint_name>
+    <joint_name>front_left_wheel_spin_joint</joint_name>
+    <joint_name>front_right_wheel_spin_joint</joint_name>
+    <joint_name>rear_left_wheel_joint</joint_name>
+    <joint_name>rear_right_wheel_joint</joint_name>
+    <joint_name>steering_wheel_joint</joint_name>
+  </plugin>
+</gazebo>
+
 </robot>

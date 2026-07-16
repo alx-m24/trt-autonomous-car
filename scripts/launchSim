@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+if [[ -z $1 ]]; then
+    echo "Usage: launchSim <gui_used:true/false>"
+    exit 1
+fi
+
+source install/setup.bash
+
+if [[ $1 == "true" ]]; then
+    ros2 launch auto_drive mycar_autorace.launch.py gui:=true
+else
+    ros2 launch auto_drive mycar_autorace.launch.py gui:=false
+fi

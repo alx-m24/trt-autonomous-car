@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+
+set -e
+
+source install/setup.bash
+rviz2 -d rviz2/world-view.rviz

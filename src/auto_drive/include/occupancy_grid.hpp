@@ -131,7 +131,7 @@ class Grid {
         
             for (uint32_t i = 0; i < CELL_COUNT.x; ++i) {
                 for (uint32_t j = 0; j < CELL_COUNT.y; ++j) {
-                    const Cell& cell = m_grid[getFlattenIndex({i, j})];
+                    const Cell& cell = m_grid[getFlattenIndex({j, i})];
         
                     geometry_msgs::msg::Point p;
                     p.x = (m_origin.x + m_cellSize.x * i);

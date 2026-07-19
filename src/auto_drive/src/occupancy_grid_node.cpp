@@ -37,7 +37,7 @@ private:
     uint32_t image_width_, image_height_;
     cv::Mat latest_white_mask_;
     cv::Mat valid_mask_;
-    cv::Mat map1_, map2_;   // add as members
+    cv::Mat map1_, map2_;
 
     vec2f CamerePos = vec2f{ -0.13f, -0.13f }; // from config
     float cameraPitch = 20.0f; // about y-axis
@@ -45,6 +45,9 @@ private:
     float ground_x_near = 1.0f, ground_x_far = 2.3f;
     float ground_y_left = -1.0f, ground_y_right = 1.0f;
     int warp_w = 400, warp_h = 400;
+
+    const uint8_t DEFAULT_V_Min = 175;
+    const uint8_t DEFAULT_S_Max = 255;
 
     // TF2 listeners
     std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
@@ -92,14 +95,13 @@ public:
             std::chrono::milliseconds(200),
             std::bind(&OccupancyGridNode::publishGrid, this));
 
-        RCLCPP_INFO(this->get_logger(), "Occupancy grid node with TF2 camera mapping started.");
-
         cv::namedWindow("mask_tuning");
         cv::createTrackbar("V_min", "mask_tuning", nullptr, 255);
         cv::createTrackbar("S_max", "mask_tuning", nullptr, 255);
-        cv::setTrackbarPos("V_min", "mask_tuning", 200);
-        cv::setTrackbarPos("S_max", "mask_tuning", 30);
+        cv::setTrackbarPos("V_min", "mask_tuning", DEFAULT_V_Min);
+        cv::setTrackbarPos("S_max", "mask_tuning", DEFAULT_S_Max);
 
+        RCLCPP_INFO(this->get_logger(), "Occupancy grid node with TF2 camera mapping started.");
     }
 
 private:
@@ -241,12 +243,13 @@ private:
         RCLCPP_INFO(this->get_logger(), "Bounds: x[%.3f, %.3f] y[%.3f, %.3f] | grid x[0, %.3f]",
             ground_x_near, ground_x_far, ground_y_left, ground_y_right, gridSize.x);
         
-        std::vector<cv::Point2f> dst_pixels = {
-            {0.f, static_cast<float>(warp_h)},               // bottom-left  -> near-left
-            {static_cast<float>(warp_w), static_cast<float>(warp_h)}, // bottom-right -> near-right
-            {static_cast<float>(warp_w), 0.f},               // top-right    -> far-right
-            {0.f, 0.f}                                        // top-left     -> far-left
-        };
+        std::vector<cv::Point2f> dst_pixels;
+        dst_pixels.reserve(4);
+        for (auto& gp : ground_pts_base) {
+            float u = (ground_y_right - gp.y) / (ground_y_right - ground_y_left) * warp_w;
+            float v = (ground_x_far  - gp.x) / (ground_x_far  - ground_x_near) * warp_h;
+            dst_pixels.push_back({u, v});
+        }
         
         H = cv::getPerspectiveTransform(src_pixels, dst_pixels);
 
@@ -354,6 +357,7 @@ private:
 
         
         cv::imshow("birds_eye_debug", debug_view);
+        cv::imshow("white_mask", white_mask);
         cv::waitKey(1);
     }
 

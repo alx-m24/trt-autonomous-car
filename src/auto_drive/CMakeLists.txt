@@ -22,10 +22,12 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 add_executable(sensor_listener src/sensor_listener.cpp)
 add_executable(manual_control src/manual_control.cpp)
 add_executable(occupancy_grid_node src/occupancy_grid_node.cpp)
+add_executable(auto_control src/auto_control.cpp)
 
 target_compile_features(sensor_listener PRIVATE cxx_std_17)
 target_compile_features(manual_control PRIVATE cxx_std_17)
 target_compile_features(occupancy_grid_node PRIVATE cxx_std_17)
+target_compile_features(auto_control PRIVATE cxx_std_17)
 
 ament_target_dependencies(sensor_listener
     rclcpp
@@ -34,10 +36,18 @@ ament_target_dependencies(sensor_listener
     cv_bridge
     OpenCV
 )
+
 ament_target_dependencies(manual_control
     rclcpp
     geometry_msgs
 )
+
+ament_target_dependencies(auto_control
+    rclcpp
+    geometry_msgs
+    visualization_msgs
+)
+
 ament_target_dependencies(occupancy_grid_node
     rclcpp
     visualization_msgs
@@ -54,8 +64,9 @@ ament_target_dependencies(occupancy_grid_node
 target_include_directories(occupancy_grid_node PRIVATE include)
 target_include_directories(sensor_listener PRIVATE include)
 target_include_directories(manual_control PRIVATE include)
+target_include_directories(auto_control PRIVATE include)
 
-install(TARGETS sensor_listener manual_control occupancy_grid_node
+install(TARGETS sensor_listener manual_control occupancy_grid_node auto_control
   DESTINATION lib/${PROJECT_NAME}
 )
 install(DIRECTORY launch config urdf worlds

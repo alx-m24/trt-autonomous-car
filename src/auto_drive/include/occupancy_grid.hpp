@@ -14,6 +14,7 @@ enum class CellValue {
     OCCUPIED,
     PLAUSIBLE_PARKING,
     CONFIRMED_PARKING,
+    CAR,
     UNKNOWN,
     COUNT
 };
@@ -56,8 +57,8 @@ class Grid {
             CELL_NUM = CELL_COUNT.x * CELL_COUNT.y;
 
             m_grid.reserve(CELL_NUM);
-            for (uint32_t i = 0; i < CELL_COUNT.x; ++i) {
-                for (uint32_t j = 0; j < CELL_COUNT.y; ++j) {
+            for (uint32_t j = 0; j < CELL_COUNT.y; ++j) {      // outer: y
+                for (uint32_t i = 0; i < CELL_COUNT.x; ++i) {  // inner: x — matches x + y*CELL_COUNT.x
                     m_grid.emplace_back(m_origin + m_cellSize * vec2i(i, j), m_cellSize, CellValue::FREE);
                 }
             }
@@ -71,33 +72,21 @@ class Grid {
             return m_grid[getFlattenIndex(index)]; 
         }
 
-        // Returns the index of the cell at 'position' relative to the center
-        vec2i getRelativeIndex(const vec2f& position) {
+        vec2i worldToIndex(const vec2f& pos) const {
             return vec2i {
-                static_cast<int32_t>(std::floor(position.x / m_cellSize.x)),
-                static_cast<int32_t>(std::floor(position.y / m_cellSize.y))
+                static_cast<int32_t>(std::floor((pos.x - m_origin.x) / m_cellSize.x)),
+                static_cast<int32_t>(std::floor((pos.y - m_origin.y) / m_cellSize.y))
             };
         }
 
-        Cell& getFromCenter(const vec2i& index) {
-            vec2i half { static_cast<int32_t>(CELL_COUNT.x / 2),
-                         static_cast<int32_t>(CELL_COUNT.y / 2) };
-            vec2i shifted = half + index;
-        
-            // Bounds check — a center-relative index can easily fall outside the
-            // grid (e.g. an obstacle detected beyond your grid's radius), and
-            // get() has no bounds checking of its own (raw vector indexing).
-            if (shifted.x < 0 || shifted.y < 0 ||
-                static_cast<uint32_t>(shifted.x) >= CELL_COUNT.x ||
-                static_cast<uint32_t>(shifted.y) >= CELL_COUNT.y) {
-                throw std::out_of_range("getFromCenter: index outside grid bounds");
+        Cell* tryGet(const vec2i& idx) {
+            if (idx.x < 0 || idx.y < 0 ||
+                static_cast<uint32_t>(idx.x) >= CELL_COUNT.x ||
+                static_cast<uint32_t>(idx.y) >= CELL_COUNT.y) {
+                return nullptr;
             }
-        
-            vec2u realIndex { static_cast<uint32_t>(shifted.x),
-                              static_cast<uint32_t>(shifted.y) };
-            return get(realIndex);
+            return &m_grid[getFlattenIndex({static_cast<uint32_t>(idx.x), static_cast<uint32_t>(idx.y)})];
         }
-
 
         template<typename Func>
         void forEach(Func&& func) {
@@ -131,11 +120,11 @@ class Grid {
         
             for (uint32_t i = 0; i < CELL_COUNT.x; ++i) {
                 for (uint32_t j = 0; j < CELL_COUNT.y; ++j) {
-                    const Cell& cell = m_grid[getFlattenIndex({j, i})];
+                    const Cell& cell = m_grid[getFlattenIndex({i, j})];
         
                     geometry_msgs::msg::Point p;
-                    p.x = (m_origin.x + m_cellSize.x * i);
-                    p.y = (m_origin.y + m_cellSize.y * j);
+                    p.x = m_origin.x + m_cellSize.x * i + m_cellSize.x * 0.5f;
+                    p.y = m_origin.y + m_cellSize.y * j + m_cellSize.y * 0.5f;
                     p.z = 0.0;
                     marker.points.push_back(p);
         
@@ -145,7 +134,8 @@ class Grid {
                         case CellValue::FREE:              color.g = 1.0f; break;                     // green
                         case CellValue::OCCUPIED:          color.r = 1.0f; break;                      // red
                         case CellValue::PLAUSIBLE_PARKING: color.r = 1.0f; color.g = 1.0f; break;       // yellow
-                        case CellValue::CONFIRMED_PARKING: color.b = 1.0f; break;                       // blue
+                        case CellValue::CONFIRMED_PARKING: color.b = 1.0f; color.r = 1.0f; break;                       // purple
+                        case CellValue::CAR: color.b = 1.0f; break;                       // blue
                         case CellValue::UNKNOWN:
                         default:                           color.r = color.g = color.b = 0.4f; break;   // grey
                     }

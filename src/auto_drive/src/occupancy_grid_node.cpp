@@ -7,6 +7,8 @@
 #include "occupancy_grid.hpp"
 #include "geometry_msgs/msg/point_stamped.hpp"
 
+#include "constants.hpp"
+
 // Camera Projection and TF2 libraries
 #include <image_geometry/pinhole_camera_model.h>
 #include <tf2_ros/transform_listener.h>
@@ -17,15 +19,15 @@
 
 static vec2f computeDefaultOrigin(const vec2f& gridSize, const vec2f& cellSize) {
     return {
-        cellSize.x / 2.0f,                      // X starts at 0.0
-        -(gridSize.y - cellSize.y) / 2.0f       // Y is perfectly centered
+        -cellSize.x / 2.0f,      // cell 0's center lands exactly on car's x=0
+        -gridSize.y / 2.0f       // grid symmetric about y=0
     };
 }
 
 class OccupancyGridNode : public rclcpp::Node {
 private:
-    const vec2f gridSize = vec2f{2.5f, 2.5f};
-    const vec2f cellSize = vec2f{0.025f, 0.025f};
+    const vec2f gridSize = vec2f{2.0f, 2.0f};
+    const vec2f cellSize = vec2f{0.0125f, 0.0125f};
 
     // Grid mapping structures
     Grid grid_;
@@ -48,6 +50,7 @@ private:
 
     const uint8_t DEFAULT_V_Min = 175;
     const uint8_t DEFAULT_S_Max = 255;
+    const uint32_t maxRadiusCells = 20;
 
     // TF2 listeners
     std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
@@ -58,6 +61,7 @@ private:
     rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr camera_sub_;
     rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr lidar_sub_;
     rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr marker_pub_;
+    rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr target_pub_;
     rclcpp::TimerBase::SharedPtr timer_;
 
     // Scan memory cache
@@ -70,6 +74,8 @@ public:
     {
         marker_pub_ = this->create_publisher<visualization_msgs::msg::Marker>(
             "/occupancy_grid_viz", 10);
+        target_pub_ = this->create_publisher<visualization_msgs::msg::Marker>(
+        "/forward_target_viz", 10);
 
          // 1. Initialize TF2 Buffer and Listener
          tf_buffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock());
@@ -94,12 +100,6 @@ public:
         timer_ = this->create_wall_timer(
             std::chrono::milliseconds(200),
             std::bind(&OccupancyGridNode::publishGrid, this));
-
-        cv::namedWindow("mask_tuning");
-        cv::createTrackbar("V_min", "mask_tuning", nullptr, 255);
-        cv::createTrackbar("S_max", "mask_tuning", nullptr, 255);
-        cv::setTrackbarPos("V_min", "mask_tuning", DEFAULT_V_Min);
-        cv::setTrackbarPos("S_max", "mask_tuning", DEFAULT_S_Max);
 
         RCLCPP_INFO(this->get_logger(), "Occupancy grid node with TF2 camera mapping started.");
     }
@@ -305,8 +305,8 @@ private:
 
         cv::Mat hsv, white_mask;
         cv::cvtColor(birds_eye, hsv, cv::COLOR_BGR2HSV);
-        int v_min = cv::getTrackbarPos("V_min", "mask_tuning");
-        int s_max = cv::getTrackbarPos("S_max", "mask_tuning");
+        int v_min = DEFAULT_V_Min;
+        int s_max = DEFAULT_S_Max;
         cv::inRange(hsv, cv::Scalar(0, 0, v_min), cv::Scalar(180, s_max, 255), white_mask);
 
         float px_per_m_x = warp_w / (ground_y_right - ground_y_left);  // 400/2 = 200
@@ -318,10 +318,13 @@ private:
         latest_white_mask_ = white_mask; // cache for use in the grid loop below
         grid_.forEach([&](Cell& cell, const vec2u&) {
             vec2f corner_pos = cell.getPosition();
-            vec2f center_pos = corner_pos + cellSize * 0.5f; // shift to cell center
+            vec2f center_pos = corner_pos + cellSize * 0.5f;
         
             cv::Point2i px = cellToWarpedPixel(center_pos);
-            if (px.x < 0) return; // outside camera's visible ground region, skip
+            if (px.x < 0) {
+                cell.value = CellValue::UNKNOWN;
+                return; // outside camera's visible ground region, skip
+            }
         
             // sample a small neighborhood rather than a single pixel, since a 0.05m
             // cell covers ~10px at this warp's scale (400px / 2m = 200px/m)
@@ -345,7 +348,7 @@ private:
         cv::cvtColor(white_mask, debug_view, cv::COLOR_GRAY2BGR);
         
         grid_.forEach([&](Cell& cell, const vec2u&) {
-            vec2f center_pos = cell.getPosition()+ cellSize * 0.5f;
+            vec2f center_pos = cell.getPosition() + cellSize * 0.5f;
             cv::Point2i px = cellToWarpedPixel(center_pos);
             if (px.x < 0) {
                 cv::circle(debug_view, px, 2, cv::Scalar(255, 0, 0), -1);
@@ -371,6 +374,8 @@ private:
             updateGridFromScan(last_scan_);
         }
 
+        analyzeGrid();
+
         auto marker = grid_.toMarker("base_footprint", this->now());
         marker_pub_->publish(marker);
         
@@ -385,6 +390,152 @@ private:
 
     void updateGridFromScan(const sensor_msgs::msg::LaserScan::SharedPtr& scan) {
         // TODO 
+    }
+
+    // Grid is centered on the car: x=0 / y=0 is the car's center point.
+    // CAR_SIZE.x/y span outward symmetrically from there (confirmed via
+    // trial and error — do not assume x=0 is the front bumper).
+    void markCarFootprint() {
+        grid_.forEach([&](Cell& cell, const vec2u&) {
+            vec2f pos = cell.getPosition() + cellSize * 0.5f; // cell center
+            if (pos.x >= -CAR_SIZE.x / 2.0f && pos.x <= CAR_SIZE.x / 2.0f &&
+                pos.y >= -CAR_SIZE.y / 2.f && pos.y <= CAR_SIZE.y / 2.f) {
+                cell.value = CellValue::CAR;
+            }
+        });
+    }
+
+    vec2f computeForwardCentroid() {
+        vec2i carIndex = grid_.worldToIndex(vec2f(0.f, 0.f));
+        carIndex.x = std::max(carIndex.x, 0);
+    
+        int frontOffset = static_cast<int>(std::ceil((CAR_SIZE.x / 2.0f) / cellSize.x)) + 1;
+        vec2i start = carIndex + vec2i(frontOffset, 0);
+    
+        auto key = [](vec2i idx) -> int64_t {
+            return (static_cast<int64_t>(idx.x) << 32) ^ static_cast<uint32_t>(idx.y);
+        };
+    
+        std::queue<vec2i> toVisit;
+        std::unordered_set<int64_t> visited;
+        toVisit.push(start);
+        visited.insert(key(start));
+    
+        vec2f weightedSum{0.f, 0.f};
+        float totalWeight = 0.f;
+        const vec2i dirs[] = { {1,0}, {-1,0}, {0,1}, {0,-1}, {1, 1}, {1, -1}, {-1, -1}, {-1, 1} };
+    
+        // Small constant tiebreaker toward the left (REP103: +y = left) — only
+        // meant to resolve symmetric left/right cases, not steer real decisions.
+        const float leftBias = 0.0f;
+    
+        while (!toVisit.empty()) {
+            vec2i idx = toVisit.front();
+            toVisit.pop();
+
+            if (idx.x < carIndex.x) continue;
+            int dx = idx.x - start.x;
+            int dy = idx.y - start.y;
+            if (std::abs(dx) > maxRadiusCells || std::abs(dy) > maxRadiusCells) continue;
+
+            Cell* cell = grid_.tryGet(idx);
+            if (!cell) continue;
+
+            // Expand through anything that isn't a confirmed obstacle, so a lone
+            // UNKNOWN/parking cell doesn't block reaching FREE cells beyond it.
+            // Only OCCUPIED actually stops the search.
+            if (cell->value != CellValue::OCCUPIED) {
+                for (auto& d : dirs) {
+                    vec2i next = idx + d;
+                    int64_t k = key(next);
+                    if (visited.count(k)) continue;
+                    visited.insert(k);
+                    toVisit.push(next);
+                }
+            }
+
+            // Weight accumulation stays gated to FREE/CAR only.
+            if (cell->value != CellValue::FREE && cell->value != CellValue::CAR) continue;
+
+            float dist = std::sqrt(static_cast<float>(dx*dx + dy*dy));
+            float distWeight = std::max(0.f, 1.f - dist / static_cast<float>(maxRadiusCells));
+    
+            float forwardWeight = 1.f;
+            if (dist > 0.f) {
+                forwardWeight = static_cast<float>(dx) / dist;
+                forwardWeight = std::max(0.f, forwardWeight);
+            }
+    
+            float weight = distWeight * forwardWeight;
+            if (weight <= 0.f) continue;
+    
+            weight *= (1.f + leftBias * static_cast<float>(dy)); // dy > 0 (left) gets a slight boost, dy < 0 a slight penalty
+    
+            weightedSum = weightedSum + ((cell->getPosition() + cellSize * 0.5f) * weight);
+            totalWeight += weight;
+    
+            for (auto& d : dirs) {
+                vec2i next = idx + d;
+                int64_t k = key(next);
+                if (visited.count(k)) continue;
+                visited.insert(k);
+                toVisit.push(next);
+            }
+        }
+    
+        if (totalWeight <= 0.f) return vec2f{0.f, 0.f};
+        return weightedSum / totalWeight;
+    }
+
+    void analyzeGrid() {
+        // Step 1: calculating rows of the grid underneath the car
+        markCarFootprint();
+
+        // Step 2: Run a "center of mass" of free cells directly in front of the car(in contact with the rows underneath the car)
+        // Car's starting index
+        vec2i carIndex = grid_.worldToIndex(vec2f(0.f, 0.f));
+        carIndex.x = std::max(carIndex.x, 0);
+        Cell* cell = grid_.tryGet(carIndex);
+        if (cell == nullptr) {
+            RCLCPP_INFO(this->get_logger(), "cell is nullptr");
+        }
+        else {
+            cell->value = CellValue::CONFIRMED_PARKING;
+        }
+        vec2f target = computeForwardCentroid();
+        bool valid = !(target.x == 0.f && target.y == 0.f); // matches the count==0 sentinel from computeForwardCentroid
+
+        publishTargetMarker(target, valid);
+
+        // Step 3: detectParking
+
+        // Step 4: Publish necessary data: i.e target position(world relative maybe), detectedParking world pos, etc
+    }
+
+    void publishTargetMarker(const vec2f& target, bool valid) {
+        visualization_msgs::msg::Marker marker;
+        marker.header.frame_id = "base_footprint";
+        marker.header.stamp = this->now();
+        marker.ns = "forward_target";
+        marker.id = 0;
+        marker.type = visualization_msgs::msg::Marker::SPHERE;
+        marker.action = visualization_msgs::msg::Marker::ADD;
+    
+        marker.pose.position.x = target.x;
+        marker.pose.position.y = target.y;
+        marker.pose.position.z = 0.05; // lift slightly above the grid's z=0 plane so it's visible over it
+        marker.pose.orientation.w = 1.0;
+    
+        marker.scale.x = marker.scale.y = marker.scale.z = 0.06;
+    
+        marker.color.a = 1.0f;
+        if (valid) {
+            marker.color.g = 1.0f; // green: valid target
+        } else {
+            marker.color.r = 1.0f; // red: boxed in / no valid centroid
+        }
+    
+        target_pub_->publish(marker);
     }
 };
 
